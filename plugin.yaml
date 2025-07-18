@@ -1,0 +1,9 @@
+name: "Automatic Blinkers"
+overview: "This plugin enables the blinkers depending on steering input and also activates them during lane changes"
+description: |
+  ### Disclaimer
+
+  This plugin is in an experimental state seeing as there is gonna be a map rewrite soon, I will update the plugin accordingly.
+image_url: ""
+version: "1.0.0"
+author: "Playzzero97"
