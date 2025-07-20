@@ -10,7 +10,7 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.0.0",
+        version="1.0.1",
         description="This plugin enables the blinkers depending on steering input and also activates them during lane changes.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -66,7 +66,7 @@ class Plugin(ETS2LAPlugin):
             lane_change_status = status_dict["plugins.map"]
 
         if self.previous_lane_change_status and self.previous_lane_change_status.startswith("executing") and lane_change_status == "idle":
-            print("Lane change completed. Resetting blinkers.")
+            print("[AB] Lane change completed. Resetting blinkers.")
             self.controller.lblinker = False
             self.controller.rblinker = False
             self.last_reset_time = time.time()
@@ -75,7 +75,7 @@ class Plugin(ETS2LAPlugin):
 
         if lane_change_status and lane_change_status.startswith("executing:"):
                 percentage = float(lane_change_status.split(":")[1]) * 100
-                print(f"Lane change in progress: {percentage:.1f}%")
+                print(f"[AB] Lane change in progress: {percentage:.1f}%")
                 
                 steeringgame = steeringgame
 
