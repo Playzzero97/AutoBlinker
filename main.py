@@ -10,12 +10,12 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.0.1",
+        version="1.0.2",
         description="This plugin enables the blinkers depending on steering input and also activates them during lane changes.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
         tags=["Base"],
-        fps_cap=5
+        fps_cap=15
     )
     
     author = Author(
@@ -28,6 +28,9 @@ class Plugin(ETS2LAPlugin):
         self.controller = self.modules.SDKController.SCSController()
         self.previous_lane_change_status = None
         self.last_reset_time = 0
+        self.last_lane_change_exec_time = 0
+        self.in_lane_change = False
+        self.lane_change_idle_start_time = None
      
     # Postponed feature until map rewrite    
     # def get_upcoming_turn_angle(self, min_z=1.0):
@@ -60,44 +63,56 @@ class Plugin(ETS2LAPlugin):
         speed = data["truckFloat"]["speed"]
 
         status_dict = self.globals.tags.lane_change_status
-        lane_change_status = None
+        lane_change_status = status_dict.get("plugins.map") if status_dict else None
 
-        if status_dict and "plugins.map" in status_dict:
-            lane_change_status = status_dict["plugins.map"]
-
-        if self.previous_lane_change_status and self.previous_lane_change_status.startswith("executing") and lane_change_status == "idle":
-            print("[AB] Lane change completed. Resetting blinkers.")
-            self.controller.lblinker = False
-            self.controller.rblinker = False
-            self.last_reset_time = time.time()
-
-        self.previous_lane_change_status = lane_change_status
+        now = time.time()
 
         if lane_change_status and lane_change_status.startswith("executing:"):
-                percentage = float(lane_change_status.split(":")[1]) * 100
-                print(f"[AB] Lane change in progress: {percentage:.1f}%")
+            if not self.in_lane_change:
+                print("[AB] Lane change started.")
+                self.in_lane_change = True
+                self.lane_change_idle_start_time = None
+                self.active_lane_change_blinker = None
+
+            percentage = float(lane_change_status.split(":")[1]) * 100
+            print(f"[AB] Lane change in progress: {percentage:.1f}%")
+
+            if self.active_lane_change_blinker is None:
+                if steeringgame < -0.01:
+                    self.controller.rblinker = True
+                    self.controller.lblinker = False
+                    self.active_lane_change_blinker = "right"
+                elif steeringgame > 0.01:
+                    self.controller.lblinker = True
+                    self.controller.rblinker = False
+                    self.active_lane_change_blinker = "left"
+            return
+
+        if self.in_lane_change and lane_change_status == "idle":
+            if self.lane_change_idle_start_time is None:
+                self.lane_change_idle_start_time = now
+            elif now - self.lane_change_idle_start_time > 0.5:
+                print("[AB] Lane change finished. Resetting blinkers.")
+                self.controller.lblinker = False
+                self.controller.rblinker = False
+                self.last_reset_time = now
+                self.in_lane_change = False
+                self.lane_change_idle_start_time = None
+                self.active_lane_change_blinker = None
                 
-                steeringgame = steeringgame
+        if speed > 0 and now - self.last_reset_time > 2.0 and lane_change_status == "idle" and not self.in_lane_change:
+            if steeringgame < -0.15:
+                self.controller.rblinker = True
+                self.controller.lblinker = False
+            elif steeringgame > 0.15:
+                self.controller.lblinker = True
+                self.controller.rblinker = False
+            else:
+                if self.controller.lblinker or self.controller.rblinker:
+                    print("[AB] Steering centered. Turning off blinkers.")
+                    self.controller.lblinker = False
+                    self.controller.rblinker = False
+                    self.last_reset_time = now
 
-                if steeringgame < -0.01 and self.controller.lblinker == False:
-                    self.controller.rblinker = True
-                    self.controller.lblinker = False
-                elif steeringgame > 0.01 and self.controller.rblinker == False:
-                    self.controller.lblinker = True
-                    self.controller.rblinker = False
-
-                return
-            
-        if time.time() - self.last_reset_time > 2.0:  # 2 seconds cooldown
-            if speed > 0:
-                if steeringgame < -0.15:
-                    self.controller.rblinker = True
-                    self.controller.lblinker = False
-                elif steeringgame > 0.15:
-                    self.controller.lblinker = True
-                    self.controller.rblinker = False
-                else:
-                    self.controller.lblinker = False
-                    self.controller.rblinker = False
         # print(steeringgame)
 
