@@ -10,7 +10,7 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.0.3",
+        version="1.0.4",
         description="This plugin enables the blinkers depending on steering input and also activates them during lane changes.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -31,6 +31,8 @@ class Plugin(ETS2LAPlugin):
         self.last_lane_change_exec_time = 0
         self.in_lane_change = False
         self.lane_change_idle_start_time = None
+        self.recent_lane_change_end = None
+
     
     def reset_blinkers(self):
         if self.controller.lblinker or self.controller.rblinker:
@@ -104,8 +106,9 @@ class Plugin(ETS2LAPlugin):
                 self.in_lane_change = False
                 self.lane_change_idle_start_time = None
                 self.active_lane_change_blinker = None
+                self.recent_lane_change_end = now
                 
-        if speed > 0 and now - self.last_reset_time > 2.0 and lane_change_status == "idle" and not self.in_lane_change:
+        if speed > 0 and now - self.last_reset_time > 2.0 and lane_change_status == "idle" and not self.in_lane_change and (self.recent_lane_change_end is None or now - self.recent_lane_change_end > 1.5):
             if steeringgame < -0.15:
                 self.controller.rblinker = True
                 self.controller.lblinker = False
