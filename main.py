@@ -10,7 +10,7 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.0.4",
+        version="1.0.5",
         description="This plugin enables the blinkers depending on steering input and also activates them during lane changes.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -94,7 +94,15 @@ class Plugin(ETS2LAPlugin):
                     self.controller.lblinker = True
                     self.controller.rblinker = False
                     self.active_lane_change_blinker = "left"
+            else:
+                if self.active_lane_change_blinker == "right":
+                    self.controller.rblinker = True
+                    self.controller.lblinker = False
+                elif self.active_lane_change_blinker == "left":
+                    self.controller.lblinker = True
+                    self.controller.rblinker = False
             return
+
 
         if self.in_lane_change and lane_change_status == "idle":
             if self.lane_change_idle_start_time is None:
