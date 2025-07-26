@@ -3,9 +3,7 @@ overview: "This plugin enables the blinkers for upcoming turns"
 description: |
   ### Disclaimer
 
-  The only reason it spams the blinkers is because the map plugins force disables the blinkers (someone thought this would be a magnificent idea (Tumppi) ) so you have to live with it for now.
-
-  If there are enough people who actually want this to work correctly I might make a fork and fix it.
+  The only reason it spams the blinkers is because the map plugins force disables the blinkers (someone thought this would be a magnificent idea (Tumppi)) so you have to live with it for now.
 image_url: ""
 version: "1.1.0"
 author: "Playzzero97"
