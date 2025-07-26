@@ -10,12 +10,12 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.0.5",
-        description="This plugin enables the blinkers depending on steering input and also activates them during lane changes.",
+        version="1.1.0",
+        description="Will activate the blinkers when turning and when doing lane changes (WIP)",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
         tags=["Base"],
-        fps_cap=15
+        fps_cap=5
     )
     
     author = Author(
@@ -26,108 +26,100 @@ class Plugin(ETS2LAPlugin):
 
     def init(self):
         self.controller = self.modules.SDKController.SCSController()
-        self.previous_lane_change_status = None
-        self.last_reset_time = 0
-        self.last_lane_change_exec_time = 0
-        self.in_lane_change = False
-        self.lane_change_idle_start_time = None
-        self.recent_lane_change_end = None
+        self.last_turn_direction = None
+        
+    def get_turn_direction(self, points, on_threshold=1.5, off_threshold=0.2):
+        if len(points) < 3:
+            return None
 
-    
-    def reset_blinkers(self):
-        if self.controller.lblinker or self.controller.rblinker:
-            self.controller.lblinker = False
-            self.controller.rblinker = False
+        def vec(p1, p2): return (p2[0] - p1[0], p2[2] - p1[2])
+        def normalize(v):
+            length = math.hypot(v[0], v[1])
+            return (v[0]/length, v[1]/length) if length else (0, 0)
 
-     
-    # Postponed feature until map rewrite    
-    # def get_upcoming_turn_angle(self, min_z=1.0):
-    #     points = self.globals.tags.steering_points
-    #     points = self.globals.tags.merge(points)
+        total_angle = 0
+        count = 0
 
-    #     if not points or len(points) < 2:
-    #         print("No valid steering points found.")
-    #         return 0.0
+        for i in range(len(points) - 2):
+            A, B, C = points[i], points[i + 1], points[i + 2]
+            v1, v2 = normalize(vec(A, B)), normalize(vec(B, C))
+            dot = max(min(v1[0]*v2[0] + v1[1]*v2[1], 1.0), -1.0)
+            angle = math.acos(dot) * (180 / math.pi)
+            cross = v1[0]*v2[1] - v1[1]*v2[0]
+            signed_angle = angle if cross > 0 else -angle
+            total_angle += signed_angle
+            count += 1
 
-    #     # Auto-reverse if most points are behind
-    #     if sum(1 for p in points if p[2] < 0) > len(points) // 2:
-    #         print("Reversing steering point list — it's pointing backwards.")
-    #         points = list(reversed(points))
+        avg_angle = total_angle / count if count > 0 else 0
+        # print(abs(avg_angle))
 
-    #     # Find first point ahead of truck
-    #     for point in points:
-    #         x, z = point[0], point[2]
-    #         if z > min_z:
-    #             angle = math.degrees(math.atan2(x, z))
-    #             print(f"Valid forward point: x={x:.2f}, z={z:.2f}, angle={angle:.2f}°")
-    #             return angle
+        if self.last_turn_direction is None:
+            if avg_angle > on_threshold:
+                self.last_turn_direction = "right"
+            elif avg_angle < -on_threshold:
+                self.last_turn_direction = "left"
+        else:
+            if abs(avg_angle) < off_threshold:
+                self.last_turn_direction = None
 
-    #     print("No forward-facing steering points found.")
-    #     return 0.0
+        return self.last_turn_direction
+
+
         
     def run(self):
         data = self.modules.TruckSimAPI.run()
-        steeringgame = data["truckFloat"]["gameSteer"]
         speed = data["truckFloat"]["speed"]
 
-        status_dict = self.globals.tags.lane_change_status
-        lane_change_status = status_dict.get("plugins.map") if status_dict else None
+        points = self.globals.tags.steering_points
+        points = self.globals.tags.merge(points)
 
-        now = time.time()
-
-        if lane_change_status and lane_change_status.startswith("executing:"):
-            if not self.in_lane_change:
-                print("[AB] Lane change started.")
-                self.in_lane_change = True
-                self.lane_change_idle_start_time = None
-                self.active_lane_change_blinker = None
-
-            percentage = float(lane_change_status.split(":")[1]) * 100
-            print(f"[AB] Lane change in progress: {percentage:.1f}%")
-
-            if self.active_lane_change_blinker is None:
-                if steeringgame < -0.01:
-                    self.controller.rblinker = True
-                    self.controller.lblinker = False
-                    self.active_lane_change_blinker = "right"
-                elif steeringgame > 0.01:
-                    self.controller.lblinker = True
-                    self.controller.rblinker = False
-                    self.active_lane_change_blinker = "left"
-            else:
-                if self.active_lane_change_blinker == "right":
-                    self.controller.rblinker = True
-                    self.controller.lblinker = False
-                elif self.active_lane_change_blinker == "left":
-                    self.controller.lblinker = True
-                    self.controller.rblinker = False
+        if not points:
+            print("[AB] No steering points found.")
             return
 
-
-        if self.in_lane_change and lane_change_status == "idle":
-            if self.lane_change_idle_start_time is None:
-                self.lane_change_idle_start_time = now
-            elif now - self.lane_change_idle_start_time > 0.5:
-                print("[AB] Lane change finished. Resetting blinkers.")
-                self.reset_blinkers()
-                self.last_reset_time = now
-                self.in_lane_change = False
-                self.lane_change_idle_start_time = None
-                self.active_lane_change_blinker = None
-                self.recent_lane_change_end = now
+        if not isinstance(points, list):
+            if isinstance(points, dict):
+                points = list(points.values())
+            else:
+                try:
+                    points = list(points)
+                except Exception as e:
+                    print(f"[AB] Could not convert steering_points to list: {e}")
+                    return
                 
-        if speed > 0 and now - self.last_reset_time > 2.0 and lane_change_status == "idle" and not self.in_lane_change and (self.recent_lane_change_end is None or now - self.recent_lane_change_end > 1.5):
-            if steeringgame < -0.15:
-                self.controller.rblinker = True
-                self.controller.lblinker = False
-            elif steeringgame > 0.15:
+        if len(points) < 3:
+            print(f"[AB] Not enough points: {len(points)}")
+            return
+
+        try:
+            points = [(float(x), float(y), float(z)) for (x, y, z) in points]
+        except Exception as e:
+            print(f"[AB] Failed to sanitize points: {e}")
+            return
+
+        # print(f"[AB] Loaded {len(points)} steering points")
+        
+        direction = self.get_turn_direction(points[:20])
+
+        if direction == "left" and speed > 0:
+            if not self.controller.lblinker:
+                print("[AB] Detected left turn")
                 self.controller.lblinker = True
                 self.controller.rblinker = False
-            else:
-                if self.controller.lblinker or self.controller.rblinker:
-                    print("[AB] Steering centered. Turning off blinkers.")
-                    self.reset_blinkers()
-                    self.last_reset_time = now
+            self.last_turn_direction = "left"
 
-        # print(steeringgame)
+        elif direction == "right" and speed > 0:
+            if not self.controller.rblinker:
+                print("[AB] Detected right turn")
+                self.controller.rblinker = True
+                self.controller.lblinker = False
+            self.last_turn_direction = "right"
+
+        else: 
+            if self.last_turn_direction is None and speed > 0:
+                self.controller.rblinker = False
+                self.controller.lblinker = False
+
+
+
 
