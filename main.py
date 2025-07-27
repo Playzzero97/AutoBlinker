@@ -10,7 +10,7 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.1.0",
+        version="1.1.1",
         description="Will activate the blinkers when turning and when doing lane changes (WIP)",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -28,7 +28,7 @@ class Plugin(ETS2LAPlugin):
         self.controller = self.modules.SDKController.SCSController()
         self.last_turn_direction = None
         
-    def get_turn_direction(self, points, on_threshold=1.5, off_threshold=0.2):
+    def get_turn_direction(self, points, angle_threshold=2):
         if len(points) < 3:
             return None
 
@@ -54,12 +54,12 @@ class Plugin(ETS2LAPlugin):
         # print(abs(avg_angle))
 
         if self.last_turn_direction is None:
-            if avg_angle > on_threshold:
+            if avg_angle > angle_threshold:
                 self.last_turn_direction = "right"
-            elif avg_angle < -on_threshold:
+            elif avg_angle < -angle_threshold:
                 self.last_turn_direction = "left"
         else:
-            if abs(avg_angle) < off_threshold:
+            if abs(avg_angle) < angle_threshold:
                 self.last_turn_direction = None
 
         return self.last_turn_direction
@@ -99,7 +99,7 @@ class Plugin(ETS2LAPlugin):
 
         # print(f"[AB] Loaded {len(points)} steering points")
         
-        direction = self.get_turn_direction(points[:20])
+        direction = self.get_turn_direction(points[:30])
 
         if direction == "left" and speed > 0:
             if not self.controller.lblinker:

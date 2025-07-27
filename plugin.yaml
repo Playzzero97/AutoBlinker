@@ -4,6 +4,8 @@ description: |
   ### Disclaimer
 
   The only reason it spams the blinkers is because the map plugins force disables the blinkers (someone thought this would be a magnificent idea (Tumppi)) so you have to live with it for now.
+
+  If you want it to work how I intended it to work, you can go to **ETS2LA directory > App > plugins > Map > Route > Classes.py > add "#" in front of the text on line 391 and 392.**
 image_url: ""
-version: "1.1.0"
+version: "1.1.1"
 author: "Playzzero97"
