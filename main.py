@@ -10,12 +10,12 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.1.1",
+        version="1.1.2",
         description="Will activate the blinkers when turning and when doing lane changes (WIP)",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
         tags=["Base"],
-        fps_cap=5
+        fps_cap=15
     )
     
     author = Author(
@@ -27,6 +27,7 @@ class Plugin(ETS2LAPlugin):
     def init(self):
         self.controller = self.modules.SDKController.SCSController()
         self.last_turn_direction = None
+        self.active_blinker = None  # "left", "right", or None
         
     def get_turn_direction(self, points, angle_threshold=2):
         if len(points) < 3:
@@ -101,24 +102,29 @@ class Plugin(ETS2LAPlugin):
         
         direction = self.get_turn_direction(points[:30])
 
-        if direction == "left" and speed > 0:
-            if not self.controller.lblinker:
-                print("[AB] Detected left turn")
-                self.controller.lblinker = True
-                self.controller.rblinker = False
-            self.last_turn_direction = "left"
+        if direction == "left" and speed > 0 and self.active_blinker != "left":
+            print("[AB] Switching to left blinker")
+            self.controller.lblinker = True
+            self.controller.rblinker = False
+            self.active_blinker = "left"
 
-        elif direction == "right" and speed > 0:
-            if not self.controller.rblinker:
-                print("[AB] Detected right turn")
-                self.controller.rblinker = True
-                self.controller.lblinker = False
-            self.last_turn_direction = "right"
+        elif direction == "right" and speed > 0 and self.active_blinker != "right":
+            print("[AB] Switching to right blinker")
+            self.controller.rblinker = True
+            self.controller.lblinker = False
+            self.active_blinker = "right"
 
-        else: 
-            if self.last_turn_direction is None and speed > 0:
-                self.controller.rblinker = False
-                self.controller.lblinker = False
+        elif direction is None and speed > 0 and self.active_blinker is not None :
+            print("[AB] No turn detected, clearing blinkers (forced)")
+            self.controller.rblinker = False
+            self.controller.lblinker = False
+            # Doing this twice because the SDK likes to be funny
+            self.controller.rblinker = False
+            self.controller.lblinker = False
+            self.last_turn_direction = None
+            self.active_blinker = None
+
+
 
 
 
