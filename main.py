@@ -10,7 +10,7 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.1.2",
+        version="1.1.3",
         description="Will activate the blinkers when turning and when doing lane changes (WIP)",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -28,8 +28,9 @@ class Plugin(ETS2LAPlugin):
         self.controller = self.modules.SDKController.SCSController()
         self.last_turn_direction = None
         self.active_blinker = None  # "left", "right", or None
+        self.turn_hold_until = 0
         
-    def get_turn_direction(self, points, angle_threshold=2):
+    def get_turn_direction(self, points, angle_threshold=2, hold_time=1.0):
         if len(points) < 3:
             return None
 
@@ -52,15 +53,19 @@ class Plugin(ETS2LAPlugin):
             count += 1
 
         avg_angle = total_angle / count if count > 0 else 0
+        now = time.time()
         # print(abs(avg_angle))
 
         if self.last_turn_direction is None:
             if avg_angle > angle_threshold:
                 self.last_turn_direction = "right"
+                self.turn_hold_until = now + hold_time
             elif avg_angle < -angle_threshold:
                 self.last_turn_direction = "left"
+                self.turn_hold_until = now + hold_time
         else:
-            if abs(avg_angle) < angle_threshold:
+            # Only clear if angle is low AND hold time expired
+            if abs(avg_angle) < angle_threshold and now >= self.turn_hold_until:
                 self.last_turn_direction = None
 
         return self.last_turn_direction
@@ -87,9 +92,9 @@ class Plugin(ETS2LAPlugin):
                 except Exception as e:
                     print(f"[AB] Could not convert steering_points to list: {e}")
                     return
-                
+
         if len(points) < 3:
-            print(f"[AB] Not enough points: {len(points)}")
+            # print(f"[AB] Not enough points: {len(points)}")
             return
 
         try:
@@ -98,10 +103,9 @@ class Plugin(ETS2LAPlugin):
             print(f"[AB] Failed to sanitize points: {e}")
             return
 
-        # print(f"[AB] Loaded {len(points)} steering points")
-        
         direction = self.get_turn_direction(points[:30])
 
+        # Turn started
         if direction == "left" and speed > 0 and self.active_blinker != "left":
             print("[AB] Switching to left blinker")
             self.controller.lblinker = True
@@ -114,15 +118,15 @@ class Plugin(ETS2LAPlugin):
             self.controller.lblinker = False
             self.active_blinker = "right"
 
-        elif direction is None and speed > 0 and self.active_blinker is not None :
-            print("[AB] No turn detected, clearing blinkers (forced)")
-            self.controller.rblinker = False
+        # Turn ended (no direction)
+        elif direction is None and self.active_blinker is not None:
+            print("[AB] No turn detected, clearing blinkers")
             self.controller.lblinker = False
-            # Doing this twice because the SDK likes to be funny
             self.controller.rblinker = False
-            self.controller.lblinker = False
             self.last_turn_direction = None
             self.active_blinker = None
+
+
 
 
 

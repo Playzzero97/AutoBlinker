@@ -7,5 +7,5 @@ description: |
    
   If you want it to work how I intended it to work, you can go to **ETS2LA directory > App > plugins > Map > Route > Classes.py > add "#" in front of the text on line 391 and 392.**
 image_url: ""
-version: "1.1.2"
+version: "1.1.3"
 author: "Playzzero97"
