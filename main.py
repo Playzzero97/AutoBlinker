@@ -1,8 +1,6 @@
 # Framework
 from ETS2LA.Events import *
 from ETS2LA.Plugin import *
-import Plugins.Map.data as mapdata
-
 import time
 import math
 
@@ -10,8 +8,8 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.1.3",
-        description="Will activate the blinkers when turning and when doing lane changes (WIP)",
+        version="1.3.0",
+        description="Activates blinkers automatically when turning or changing lanes (optimized)",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
         tags=["Base"],
@@ -28,9 +26,10 @@ class Plugin(ETS2LAPlugin):
         self.controller = self.modules.SDKController.SCSController()
         self.last_turn_direction = None
         self.active_blinker = None  # "left", "right", or None
-        self.turn_hold_until = 0
-        
-    def get_turn_direction(self, points, angle_threshold=2, hold_time=1.0):
+        truck_indicating_left = None
+        truck_indicating_right = None
+
+    def get_turn_direction(self, points, angle_threshold=2, hold_time=1.5):
         if len(points) < 3:
             return None
 
@@ -52,9 +51,9 @@ class Plugin(ETS2LAPlugin):
             total_angle += signed_angle
             count += 1
 
-        avg_angle = total_angle / count if count > 0 else 0
+        avg_angle = total_angle / count
         now = time.time()
-        # print(abs(avg_angle))
+        print(abs(avg_angle))
 
         if self.last_turn_direction is None:
             if avg_angle > angle_threshold:
@@ -71,34 +70,57 @@ class Plugin(ETS2LAPlugin):
         return self.last_turn_direction
 
 
+    def reset_indicators(self):
+        if self.truck_indicating_left:
+            self.controller.lblinker = True
+            time.sleep(1/20)
+            self.controller.lblinker = False
+            time.sleep(1/20)
+        elif self.truck_indicating_right:
+            self.controller.rblinker = True
+            time.sleep(1/20)
+            self.controller.rblinker = False
+            time.sleep(1/20)
         
+    def indicate_right(self):
+        if not self.truck_indicating_right:
+            self.controller.rblinker = True
+            time.sleep(1/20)
+            self.controller.rblinker = False
+            time.sleep(1/20)
+                
+    def indicate_left(self):
+        if not self.truck_indicating_left:
+            self.controller.lblinker = True
+            time.sleep(1/20)
+            self.controller.lblinker = False
+            time.sleep(1/20)
+
     def run(self):
-        data = self.modules.TruckSimAPI.run()
-        speed = data["truckFloat"]["speed"]
+        api_data = self.modules.TruckSimAPI.run()
+        self.truck_indicating_left = api_data["truckBool"]["blinkerLeftActive"]
+        self.truck_indicating_right = api_data["truckBool"]["blinkerRightActive"]
+
+        status = self.globals.tags.status
+        acc = False
+        map = False
+        if status:
+            status = self.globals.tags.merge(status)
+            acc = status.get("AdaptiveCruiseControl", False)
+            map = status.get("Map", False)
+
+            if map == False:
+                return
 
         points = self.globals.tags.steering_points
         points = self.globals.tags.merge(points)
-
-        if not points:
-            print("[AB] No steering points found.")
-            return
-
-        if not isinstance(points, list):
-            if isinstance(points, dict):
-                points = list(points.values())
-            else:
-                try:
-                    points = list(points)
-                except Exception as e:
-                    print(f"[AB] Could not convert steering_points to list: {e}")
-                    return
-
-        if len(points) < 3:
-            # print(f"[AB] Not enough points: {len(points)}")
+        if not points or len(points) < 3:
             return
 
         try:
-            points = [(float(x), float(y), float(z)) for (x, y, z) in points]
+            if isinstance(points, dict):
+                points = list(points.values())
+            points = [(float(x), float(y), float(z)) for x,y,z in points]
         except Exception as e:
             print(f"[AB] Failed to sanitize points: {e}")
             return
@@ -106,30 +128,19 @@ class Plugin(ETS2LAPlugin):
         direction = self.get_turn_direction(points[:30])
 
         # Turn started
-        if direction == "left" and speed > 0 and self.active_blinker != "left":
-            print("[AB] Switching to left blinker")
-            self.controller.lblinker = True
-            self.controller.rblinker = False
+        if direction == "left" and not self.truck_indicating_left:
+            self.indicate_left()
             self.active_blinker = "left"
+            print("[AB] Switching to left blinker")
 
-        elif direction == "right" and speed > 0 and self.active_blinker != "right":
-            print("[AB] Switching to right blinker")
-            self.controller.rblinker = True
-            self.controller.lblinker = False
+        elif direction == "right" and not self.truck_indicating_right:
+            self.indicate_right()
             self.active_blinker = "right"
+            print("[AB] Switching to right blinker")
 
-        # Turn ended (no direction)
+        # Turn ended
         elif direction is None and self.active_blinker is not None:
-            print("[AB] No turn detected, clearing blinkers")
-            self.controller.lblinker = False
-            self.controller.rblinker = False
-            self.last_turn_direction = None
             self.active_blinker = None
-
-
-
-
-
-
-
-
+            self.reset_indicators()
+            self.last_turn_direction = None
+            print("[AB] No turn detected, clearing blinkers")
