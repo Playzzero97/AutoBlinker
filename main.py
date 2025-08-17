@@ -53,7 +53,7 @@ class Plugin(ETS2LAPlugin):
 
         avg_angle = total_angle / count
         now = time.time()
-        print(abs(avg_angle))
+        # print(abs(avg_angle))
 
         if self.last_turn_direction is None:
             if avg_angle > angle_threshold:
