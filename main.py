@@ -9,7 +9,7 @@ class Plugin(ETS2LAPlugin):
     description = PluginDescription(
         name="Automatic Blinkers",
         version="1.3.0",
-        description="Activates blinkers automatically when turning or changing lanes (optimized)",
+        description="This plugin enables the blinkers for upcoming turns.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
         tags=["Base"],
