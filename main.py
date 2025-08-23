@@ -8,7 +8,7 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.3.0",
+        version="1.4.0",
         description="This plugin enables the blinkers for upcoming turns.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -127,20 +127,25 @@ class Plugin(ETS2LAPlugin):
 
         direction = self.get_turn_direction(points[:30])
 
-        # Turn started
-        if direction == "left" and not self.truck_indicating_left:
-            self.indicate_left()
-            self.active_blinker = "left"
-            print("[AB] Switching to left blinker")
+        distance = (self.globals.tags.next_intersection_distance or {}).get('plugins.map', 0)
 
-        elif direction == "right" and not self.truck_indicating_right:
-            self.indicate_right()
-            self.active_blinker = "right"
-            print("[AB] Switching to right blinker")
+        print(distance)
 
-        # Turn ended
-        elif direction is None and self.active_blinker is not None:
-            self.active_blinker = None
-            self.reset_indicators()
-            self.last_turn_direction = None
-            print("[AB] No turn detected, clearing blinkers")
+        if self.globals.tags.road_type == "highway" or distance <= 25:
+            # Turn started
+            if direction == "left" and not self.truck_indicating_left:
+                self.indicate_left()
+                self.active_blinker = "left"
+                print("[AB] Switching to left blinker")
+
+            elif direction == "right" and not self.truck_indicating_right:
+                self.indicate_right()
+                self.active_blinker = "right"
+                print("[AB] Switching to right blinker")
+
+            # Turn ended
+            elif direction is None and self.active_blinker is not None:
+                self.active_blinker = None
+                self.reset_indicators()
+                self.last_turn_direction = None
+                print("[AB] No turn detected, clearing blinkers")
