@@ -8,7 +8,7 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.4.0",
+        version="1.4.1",
         description="This plugin enables the blinkers for upcoming turns.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -29,7 +29,7 @@ class Plugin(ETS2LAPlugin):
         truck_indicating_left = None
         truck_indicating_right = None
 
-    def get_turn_direction(self, points, angle_threshold=2, hold_time=1.5):
+    def get_turn_direction(self, points, angle_threshold=2.5, hold_time=1.5):
         if len(points) < 3:
             return None
 
@@ -62,6 +62,8 @@ class Plugin(ETS2LAPlugin):
             elif avg_angle < -angle_threshold:
                 self.last_turn_direction = "left"
                 self.turn_hold_until = now + hold_time
+            elif abs(avg_angle) > 3.8:
+                return None
         else:
             # Only clear if angle is low AND hold time expired
             if abs(avg_angle) < angle_threshold and now >= self.turn_hold_until:
@@ -128,8 +130,6 @@ class Plugin(ETS2LAPlugin):
         direction = self.get_turn_direction(points[:30])
 
         distance = (self.globals.tags.next_intersection_distance or {}).get('plugins.map', 0)
-
-        print(distance)
 
         if self.globals.tags.road_type == "highway" or distance <= 25:
             # Turn started
