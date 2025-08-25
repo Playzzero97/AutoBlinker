@@ -8,7 +8,7 @@ class Plugin(ETS2LAPlugin):
     
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.4.1",
+        version="1.4.2",
         description="This plugin enables the blinkers for upcoming turns.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -25,7 +25,7 @@ class Plugin(ETS2LAPlugin):
     def init(self):
         self.controller = self.modules.SDKController.SCSController()
         self.last_turn_direction = None
-        self.active_blinker = None  # "left", "right", or None
+        self.globals.tags.AB_active_blinker = None
         truck_indicating_left = None
         truck_indicating_right = None
 
@@ -135,17 +135,18 @@ class Plugin(ETS2LAPlugin):
             # Turn started
             if direction == "left" and not self.truck_indicating_left:
                 self.indicate_left()
-                self.active_blinker = "left"
+                self.globals.tags.AB_active_blinker = "left"
                 print("[AB] Switching to left blinker")
 
             elif direction == "right" and not self.truck_indicating_right:
                 self.indicate_right()
-                self.active_blinker = "right"
+                self.globals.tags.AB_active_blinker = "right"
                 print("[AB] Switching to right blinker")
 
             # Turn ended
-            elif direction is None and self.active_blinker is not None:
-                self.active_blinker = None
+            elif direction is None and self.globals.tags.AB_active_blinker is not None:
+                self.globals.tags.AB_active_blinker = None
                 self.reset_indicators()
                 self.last_turn_direction = None
                 print("[AB] No turn detected, clearing blinkers")
+
