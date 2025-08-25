@@ -1,21 +1,20 @@
-# Framework
 from ETS2LA.Events import *
 from ETS2LA.Plugin import *
 import time
 import math
 
 class Plugin(ETS2LAPlugin):
-    
+
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.4.2",
+        version="1.4.3",
         description="This plugin enables the blinkers for upcoming turns.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
         tags=["Base"],
         fps_cap=15
     )
-    
+
     author = Author(
         name="Playzzero97",
         url="https://github.com/Playzzero97",
@@ -25,7 +24,7 @@ class Plugin(ETS2LAPlugin):
     def init(self):
         self.controller = self.modules.SDKController.SCSController()
         self.last_turn_direction = None
-        self.globals.tags.AB_active_blinker = None
+        self.active_blinker = None  # "left", "right", or None
         truck_indicating_left = None
         truck_indicating_right = None
 
@@ -83,14 +82,14 @@ class Plugin(ETS2LAPlugin):
             time.sleep(1/20)
             self.controller.rblinker = False
             time.sleep(1/20)
-        
+
     def indicate_right(self):
         if not self.truck_indicating_right:
             self.controller.rblinker = True
             time.sleep(1/20)
             self.controller.rblinker = False
             time.sleep(1/20)
-                
+
     def indicate_left(self):
         if not self.truck_indicating_left:
             self.controller.lblinker = True
@@ -135,18 +134,17 @@ class Plugin(ETS2LAPlugin):
             # Turn started
             if direction == "left" and not self.truck_indicating_left:
                 self.indicate_left()
-                self.globals.tags.AB_active_blinker = "left"
+                self.active_blinker = "left"
                 print("[AB] Switching to left blinker")
 
             elif direction == "right" and not self.truck_indicating_right:
                 self.indicate_right()
-                self.globals.tags.AB_active_blinker = "right"
+                self.active_blinker = "right"
                 print("[AB] Switching to right blinker")
 
             # Turn ended
-            elif direction is None and self.globals.tags.AB_active_blinker is not None:
-                self.globals.tags.AB_active_blinker = None
+            elif direction is None and self.active_blinker is not None:
+                self.active_blinker = None
                 self.reset_indicators()
                 self.last_turn_direction = None
                 print("[AB] No turn detected, clearing blinkers")
-
