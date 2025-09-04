@@ -1,5 +1,6 @@
-from ETS2LA.Events import *
-from ETS2LA.Plugin import *
+from ETS2LA.Plugin import ETS2LAPlugin
+from ETS2LA.Plugin import PluginDescription
+from ETS2LA.Plugin import Author
 import time
 import math
 
@@ -7,7 +8,7 @@ class Plugin(ETS2LAPlugin):
 
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.4.3",
+        version="1.4.4",
         description="This plugin enables the blinkers for upcoming turns.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -25,8 +26,7 @@ class Plugin(ETS2LAPlugin):
         self.controller = self.modules.SDKController.SCSController()
         self.last_turn_direction = None
         self.active_blinker = None  # "left", "right", or None
-        truck_indicating_left = None
-        truck_indicating_right = None
+        self._on_highway = None
 
     def get_turn_direction(self, points, angle_threshold=2.5, hold_time=1.5):
         if len(points) < 3:
@@ -61,8 +61,6 @@ class Plugin(ETS2LAPlugin):
             elif avg_angle < -angle_threshold:
                 self.last_turn_direction = "left"
                 self.turn_hold_until = now + hold_time
-            elif abs(avg_angle) > 3.8:
-                return None
         else:
             # Only clear if angle is low AND hold time expired
             if abs(avg_angle) < angle_threshold and now >= self.turn_hold_until:
@@ -102,19 +100,17 @@ class Plugin(ETS2LAPlugin):
         self.truck_indicating_left = api_data["truckBool"]["blinkerLeftActive"]
         self.truck_indicating_right = api_data["truckBool"]["blinkerRightActive"]
 
-        status = self.globals.tags.status
-        acc = False
+        status = self.tags.status
         map = False
         if status:
-            status = self.globals.tags.merge(status)
-            acc = status.get("AdaptiveCruiseControl", False)
+            status = self.tags.merge(status)
             map = status.get("Map", False)
 
-            if map == False:
+            if not map:
                 return
 
-        points = self.globals.tags.steering_points
-        points = self.globals.tags.merge(points)
+        points = self.tags.steering_points
+        points = self.tags.merge(points)
         if not points or len(points) < 3:
             return
 
@@ -128,23 +124,28 @@ class Plugin(ETS2LAPlugin):
 
         direction = self.get_turn_direction(points[:30])
 
-        distance = (self.globals.tags.next_intersection_distance or {}).get('plugins.map', 0)
+        if self.tags.road_type != "highway":
+            if self._on_highway is not False:
+                self.notify("Exited highway, Automatic Blinkers has been re-enabled")
+                self._on_highway = False
 
-        if self.globals.tags.road_type == "highway" or distance <= 25:
-            # Turn started
+            # Blinkers logic
             if direction == "left" and not self.truck_indicating_left:
                 self.indicate_left()
                 self.active_blinker = "left"
                 print("[AB] Switching to left blinker")
-
             elif direction == "right" and not self.truck_indicating_right:
                 self.indicate_right()
                 self.active_blinker = "right"
                 print("[AB] Switching to right blinker")
 
-            # Turn ended
             elif direction is None and self.active_blinker is not None:
                 self.active_blinker = None
                 self.reset_indicators()
                 self.last_turn_direction = None
                 print("[AB] No turn detected, clearing blinkers")
+
+        else:
+            if self._on_highway is not True:
+                self.notify("Highway detected, Automatic Blinkers has been temporarily disabled.")
+                self._on_highway = True
