@@ -8,7 +8,7 @@ class Plugin(ETS2LAPlugin):
 
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.4.6",
+        version="1.4.7",
         description="This plugin enables the blinkers for upcoming turns.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -135,8 +135,6 @@ class Plugin(ETS2LAPlugin):
 
         lane_change_status = self.tags.lane_change_status
         lane_change_status = self.tags.merge(lane_change_status)
-
-        print(lane_change_status)
 
         if lane_change_status == "idle":
             # Blinkers logic
