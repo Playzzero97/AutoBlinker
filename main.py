@@ -8,7 +8,7 @@ class Plugin(ETS2LAPlugin):
 
     description = PluginDescription(
         name="Automatic Blinkers",
-        version="1.4.5",
+        version="1.4.6",
         description="This plugin enables the blinkers for upcoming turns.",
         modules=["Traffic", "TruckSimAPI", "SDKController"],
         listen=["*.py"],
@@ -26,7 +26,7 @@ class Plugin(ETS2LAPlugin):
         self.controller = self.modules.SDKController.SCSController()
         self.last_turn_direction = None
         self.active_blinker = None  # "left", "right", or None
-        self._on_highway = False
+        self.notifiedUser = False
 
     def get_turn_direction(self, points, angle_threshold=2.5, hold_time=1.5):
         if len(points) < 3:
@@ -54,6 +54,9 @@ class Plugin(ETS2LAPlugin):
         now = time.time()
         # print(abs(avg_angle))
 
+        is_highway = self.tags.road_type
+        is_highway = self.tags.merge(is_highway)
+
         if self.last_turn_direction is None:
             if avg_angle > angle_threshold:
                 self.last_turn_direction = "right"
@@ -61,8 +64,8 @@ class Plugin(ETS2LAPlugin):
             elif avg_angle < -angle_threshold:
                 self.last_turn_direction = "left"
                 self.turn_hold_until = now + hold_time
-            elif abs(avg_angle) > 3.8:
-                return None
+            elif  is_highway == "highway":
+                self.last_turn_direction = None
         else:
             # Only clear if angle is low AND hold time expired
             if abs(avg_angle) < angle_threshold and now >= self.turn_hold_until:
@@ -126,11 +129,16 @@ class Plugin(ETS2LAPlugin):
 
         direction = self.get_turn_direction(points[:30])
 
-        if self.tags.road_type != "highway":
-            if self._on_highway is True:
-                self.notify("Exited highway, Automatic Blinkers has been re-enabled")
-                self._on_highway = False
+        if not self.notifiedUser:
+            self.notify("Automatic Blinkers is still a work in progress. Some behavior may not function as intended.")
+            self.notifiedUser = True
 
+        lane_change_status = self.tags.lane_change_status
+        lane_change_status = self.tags.merge(lane_change_status)
+
+        print(lane_change_status)
+
+        if lane_change_status == "idle":
             # Blinkers logic
             if direction == "left" and not self.truck_indicating_left:
                 self.indicate_left()
@@ -146,8 +154,3 @@ class Plugin(ETS2LAPlugin):
                 self.reset_indicators()
                 self.last_turn_direction = None
                 print("[AB] No turn detected, clearing blinkers")
-
-        else:
-            if self._on_highway is False:
-                self.notify("Highway detected, Automatic Blinkers has been temporarily disabled.")
-                self._on_highway = True
